@@ -47,6 +47,17 @@ body {
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
 }
 
+.message {
+    font-size: 18px;
+    color: #555;
+    margin-top: 10px;
+    background-color: #f5faff;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+    line-height: 1.6;
+}
+
 /* TITLES & HEADINGS */
 h1, h2, h3, h4 {
     text-align: center;
@@ -748,7 +759,7 @@ tbody tr:hover {
         },
         {
             "name": "Inj. Dicloran",
-            "dosage": 0.75,
+            "dose": 0.75,
             "instructions": "0.75 mg/kg/dose",
             "category": "NSAIDS",
             "indications": ["Pain", "Inflammation", "Fever"]
@@ -826,12 +837,13 @@ tbody tr:hover {
         {
             "name": "Endotracheal tube size",
             "formula": "4 + Age/4",
+            "instructions": "Size calculated based on age: 4 + Age/4",
             "category": "Resuscitation",
             "indications": ["Respiratory failure", "Cardiac arrest", "Trauma"]
         },
         {
             "name": "Atropine Min",
-            "d ose": 0.01,
+            "dose": 0.01,
             "instructions": "0.01-0.02 mg/kg IV",
             "category": "Resuscitation",
             "indications": ["Bradycardia", "Asystole", "Pulseless electrical activity"]
@@ -1328,7 +1340,7 @@ tbody tr:hover {
         },
         {
             "name": "Adrenaline 0.05mcg",
-            " dose": 0.05,
+            "dose": 0.05,
             "instructions": "0.05 mcg/kg/min",
             "category": "Vasoactive Medications",
             "indications": ["Hypotension", "Bradycardia", "Cardiac arrest"]
@@ -1441,18 +1453,6 @@ function displayResultsByCategory(weight) {
                 <td>${item.indications ? item.indications.join(', ') : 'No indications available'}</td>
             `;
 
-            // Add dark color scheme and smooth hover effect for each row
-            row.style.backgroundColor = '#2a2c30';
-            row.style.color = '#fff';
-            row.style.transition = 'background-color 0.3s ease';
-            row.style.borderBottom = '1px solid #444';
-            row.addEventListener('mouseenter', () => {
-                row.style.backgroundColor = '#3a3d42';
-            });
-            row.addEventListener('mouseleave', () => {
-                row.style.backgroundColor = '#2a2c30';
-            });
-
             table.querySelector('tbody').appendChild(row);
         });
 
@@ -1472,21 +1472,60 @@ function displayResultsByCategory(weight) {
              * @returns {string} The calculated dose as a string, including the unit of measurement.
              */
             function calculateDose(medication, weight) {
+                // Handle special cases first
+                if (medication.formula) {
+                    if (medication.name === "Endotracheal tube size") {
+                        // Assuming age ~ weight/3 for estimation (simplified pediatric formula)
+                        const estimatedAge = Math.max(1, weight / 3);
+                        return (4 + estimatedAge / 4).toFixed(1) + " mm";
+                    }
+                    return "See instructions";
+                }
+                
+                // Handle maintenance fluids with complex formulas
+                if (medication.name.includes("Maintenance Fluid") && medication.dose && medication.dose.weightBasedDose) {
+                    try {
+                        const result = eval(medication.dose.weightBasedDose);
+                        return result.toFixed(1) + " ml/hr";
+                    } catch (e) {
+                        return "Error in calculation";
+                    }
+                }
+                
+                // Handle regular dose calculations
+                if (!medication.dose) {
+                    return "Dose not specified";
+                }
+                
+                // Handle different units and medication types
                 if (medication.unit === "mcg") {
-                    // Return the dose in mcg
-                    return (medication.dose * weight * 1000).toFixed(1); // Convert mg to mcg
+                    return (medication.dose * weight * 1000).toFixed(1) + " mcg";
                 } else if (medication.unit === "IU") {
-                    // Return the dose in IU
-                    return (medication.dose * weight).toFixed(1); // Assume IU are given directly
+                    return (medication.dose * weight).toFixed(1) + " IU";
                 } else if (medication.category === "Syrups") {
-                    const concentration = medication.concentration;
+                    const concentration = medication.concentration || 1;
                     const doseMg = medication.dose * weight;
-                    const doseMl = (doseMg / concentration) * 5; // Calculate in mL
-                    return doseMg.toFixed(1); // Return only the numerical dose in mg
-                } else if (medication.name.includes("Maintenance Fluid")) {
-                    return eval(medication.dose.weightBasedDose); // Return only the numerical value in mL/hr
+                    return doseMg.toFixed(1) + " mg";
+                } else if (medication.name.includes("mcg")) {
+                    // For medications with mcg in the name
+                    return (medication.dose * weight).toFixed(1) + " mcg";
+                } else if (medication.name.includes("IU")) {
+                    // For medications with IU in the name  
+                    return (medication.dose * weight).toFixed(0) + " IU";
+                } else if (medication.name.includes("joule")) {
+                    // For cardioversion energy
+                    return (medication.dose * weight).toFixed(1) + " joules";
+                } else if (medication.category === "Cardioversion") {
+                    return (medication.dose * weight).toFixed(1) + " joules";
+                } else if (medication.instructions && medication.instructions.includes("ml/kg")) {
+                    // For fluid-based medications
+                    return (medication.dose * weight).toFixed(1) + " ml";
+                } else if (medication.instructions && medication.instructions.includes("mEq")) {
+                    // For electrolytes
+                    return (medication.dose * weight).toFixed(1) + " mEq";
                 } else {
-                    return (medication.dose * weight).toFixed(1); // Return only the numerical dose in mg
+                    // Default case - return dose in mg
+                    return (medication.dose * weight).toFixed(1) + " mg";
                 }
             }
 
